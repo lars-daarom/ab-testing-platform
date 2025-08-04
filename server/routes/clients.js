@@ -12,7 +12,7 @@ router.get('/', authenticateToken, async (req, res) => {
       include: [{
         model: Client,
         through: UserClient,
-        attributes: ['id', 'name', 'domain', 'createdAt']
+        attributes: ['id', 'name', 'domain', 'createdAt', 'updatedAt']
       }]
     });
 
@@ -20,13 +20,75 @@ router.get('/', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Format clients with proper date fields
+    const formattedClients = (user.Clients || []).map(client => ({
+      id: client.id,
+      name: client.name,
+      domain: client.domain,
+      createdAt: client.createdAt,
+      updatedAt: client.updatedAt,
+      created: client.createdAt // Fallback field
+    }));
+
     res.json({
-      clients: user.Clients || [],
+      clients: formattedClients,
       message: 'Clients retrieved successfully'
     });
   } catch (error) {
     console.error('Get clients error:', error);
     res.status(500).json({ error: 'Failed to retrieve clients' });
+  }
+});
+
+// Get single client by ID
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if user has access to this client
+    const userClient = await UserClient.findOne({
+      where: {
+        userId: req.user.userId,
+        clientId: id
+      }
+    });
+
+    if (!userClient) {
+      return res.status(403).json({ error: 'Access denied to this client' });
+    }
+
+    const client = await Client.findByPk(id, {
+      include: [{
+        model: User,
+        through: UserClient,
+        attributes: ['id', 'name', 'email'],
+        include: [{
+          model: UserClient,
+          attributes: ['role', 'permissions']
+        }]
+      }]
+    });
+
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    res.json({
+      client: {
+        id: client.id,
+        name: client.name,
+        domain: client.domain,
+        apiKey: client.apiKey,
+        settings: client.settings,
+        isActive: client.isActive,
+        createdAt: client.createdAt,
+        updatedAt: client.updatedAt,
+        users: client.Users || []
+      }
+    });
+  } catch (error) {
+    console.error('Get client error:', error);
+    res.status(500).json({ error: 'Failed to retrieve client' });
   }
 });
 
@@ -71,13 +133,107 @@ router.post('/', authenticateToken, [
         domain: client.domain,
         apiKey: client.apiKey,
         settings: client.settings,
-        createdAt: client.createdAt
+        createdAt: client.createdAt,
+        updatedAt: client.updatedAt,
+        created: client.createdAt // Fallback field
       },
       message: 'Client created successfully'
     });
   } catch (error) {
     console.error('Create client error:', error);
     res.status(500).json({ error: 'Failed to create client' });
+  }
+});
+
+// Update client
+router.patch('/:id', authenticateToken, [
+  body('name').optional().trim().isLength({ min: 2, max: 100 }),
+  body('domain').optional().isLength({ min: 3, max: 255 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { id } = req.params;
+
+    // Check if user has admin access to this client
+    const userClient = await UserClient.findOne({
+      where: {
+        userId: req.user.userId,
+        clientId: id,
+        role: 'admin'
+      }
+    });
+
+    if (!userClient) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const client = await Client.findByPk(id);
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Update client
+    await client.update(req.body);
+
+    res.json({
+      client: {
+        id: client.id,
+        name: client.name,
+        domain: client.domain,
+        settings: client.settings,
+        createdAt: client.createdAt,
+        updatedAt: client.updatedAt
+      },
+      message: 'Client updated successfully'
+    });
+  } catch (error) {
+    console.error('Update client error:', error);
+    res.status(500).json({ error: 'Failed to update client' });
+  }
+});
+
+// Update client settings
+router.patch('/:id/settings', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if user has admin access to this client
+    const userClient = await UserClient.findOne({
+      where: {
+        userId: req.user.userId,
+        clientId: id,
+        role: 'admin'
+      }
+    });
+
+    if (!userClient) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const client = await Client.findByPk(id);
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Merge settings
+    const updatedSettings = {
+      ...client.settings,
+      ...req.body
+    };
+
+    await client.update({ settings: updatedSettings });
+
+    res.json({
+      settings: updatedSettings,
+      message: 'Client settings updated successfully'
+    });
+  } catch (error) {
+    console.error('Update client settings error:', error);
+    res.status(500).json({ error: 'Failed to update client settings' });
   }
 });
 
@@ -110,7 +266,8 @@ router.get('/:id/status', async (req, res) => {
         id: client.id,
         name: client.name,
         domain: client.domain,
-        isActive: client.isActive
+        isActive: client.isActive,
+        createdAt: client.createdAt
       },
       activeTests: client.Tests || [],
       timestamp: new Date().toISOString()
