@@ -22,7 +22,15 @@ import {
   AlertCircle,
   Activity,
   Globe,
-  LogOut
+  LogOut,
+  ChevronDown,
+  X,
+  Calendar,
+  Percent,
+  Link2,
+  Trash2,
+  Edit,
+  Copy
 } from 'lucide-react';
 
 // API configuration
@@ -131,6 +139,7 @@ const AuthProvider = ({ children }) => {
     clients,
     currentClient,
     setCurrentClient,
+    setClients,
     login,
     register,
     logout,
@@ -164,14 +173,18 @@ const ThemeProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem('theme', JSON.stringify(isDark));
+    const html = document.documentElement;
     if (isDark) {
-      document.documentElement.classList.add('dark');
+      html.classList.add('dark');
     } else {
-      document.documentElement.classList.remove('dark');
+      html.classList.remove('dark');
     }
   }, [isDark]);
 
-  const toggleTheme = () => setIsDark(!isDark);
+  const toggleTheme = () => {
+    setIsDark(!isDark);
+    toast.success(`${!isDark ? 'Dark' : 'Light'} mode geactiveerd`);
+  };
 
   return (
     <ThemeContext.Provider value={{ isDark, toggleTheme }}>
@@ -287,6 +300,52 @@ const LoginForm = () => {
   );
 };
 
+// Client Switcher Component
+const ClientSwitcher = () => {
+  const { clients, currentClient, setCurrentClient } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!clients || clients.length <= 1) return null;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center space-x-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm text-gray-300 border border-gray-600 transition-colors"
+      >
+        <Globe size={16} />
+        <span className="max-w-32 truncate">{currentClient?.name}</span>
+        <ChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      
+      {isOpen && (
+        <div className="absolute top-full right-0 mt-2 w-64 bg-gray-800 rounded-lg shadow-lg border border-gray-700 z-50">
+          <div className="p-2 max-h-64 overflow-y-auto">
+            {clients.map(client => (
+              <button
+                key={client.id}
+                onClick={() => {
+                  setCurrentClient(client);
+                  setIsOpen(false);
+                  toast.success(`Gewisseld naar ${client.name}`);
+                }}
+                className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
+                  currentClient?.id === client.id 
+                    ? 'bg-purple-600 text-white' 
+                    : 'text-gray-300 hover:bg-gray-700'
+                }`}
+              >
+                <div className="font-medium">{client.name}</div>
+                <div className="text-xs text-gray-400">{client.domain}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Dashboard Component
 const Dashboard = () => {
   const { currentClient } = useAuth();
@@ -296,6 +355,8 @@ const Dashboard = () => {
     totalConversions: 0,
     conversionRate: 0
   });
+  const [recentTests, setRecentTests] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchDashboardData();
@@ -304,14 +365,36 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     if (!currentClient) return;
     
+    setLoading(true);
     try {
-      const response = await axios.get(`/analytics/stats/${currentClient.id}`);
-      setStats(response.data);
+      const [statsResponse, testsResponse] = await Promise.all([
+        axios.get(`/analytics/stats/${currentClient.id}`),
+        axios.get(`/tests?clientId=${currentClient.id}&limit=5`)
+      ]);
+      
+      setStats(statsResponse.data);
+      setRecentTests(testsResponse.data.tests || []);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       toast.error('Kon dashboard data niet laden');
+    } finally {
+      setLoading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-8 animate-pulse">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+              <div className="h-16 bg-gray-700 rounded"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -366,27 +449,129 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
-        <h2 className="text-xl font-semibold text-white mb-4">Welkom bij je A/B Testing Platform!</h2>
-        <p className="text-gray-300 mb-4">
-          Je platform is succesvol gedeployed en klaar voor gebruik. Hier kun je:
-        </p>
-        <ul className="text-gray-300 space-y-2">
-          <li>• A/B tests aanmaken en beheren</li>
-          <li>• Real-time statistieken bekijken</li>
-          <li>• Team leden uitnodigen</li>
-          <li>• Conversie doelen instellen</li>
-        </ul>
+      {/* Recent Tests */}
+      <div className="bg-gray-800 rounded-xl border border-gray-700">
+        <div className="p-6 border-b border-gray-700">
+          <h2 className="text-xl font-semibold text-white">Recente Tests</h2>
+        </div>
+        <div className="p-6">
+          {recentTests.length > 0 ? (
+            <div className="space-y-4">
+              {recentTests.map(test => (
+                <div key={test.id} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
+                  <div>
+                    <h3 className="font-medium text-white">{test.name}</h3>
+                    <p className="text-sm text-gray-400">
+                      {test.type === 'ab' ? 'A/B Test' : 'Split URL'} • 
+                      Status: {test.status === 'running' ? 'Actief' : test.status === 'paused' ? 'Gepauzeerd' : 'Concept'}
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      test.status === 'running' ? 'bg-green-900 text-green-200' :
+                      test.status === 'paused' ? 'bg-yellow-900 text-yellow-200' :
+                      'bg-gray-600 text-gray-300'
+                    }`}>
+                      {test.status === 'running' ? 'Actief' : 
+                       test.status === 'paused' ? 'Gepauzeerd' : 'Concept'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Split className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-white mb-2">Nog geen tests</h3>
+              <p className="text-gray-400 mb-4">Maak je eerste A/B test aan om te beginnen.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
-// Simple Tests Component
+// Tests Component with full CRUD
 const Tests = () => {
   const { currentClient } = useAuth();
   const [tests, setTests] = useState([]);
   const [showCreateTest, setShowCreateTest] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchTests();
+  }, [currentClient]);
+
+  const fetchTests = async () => {
+    if (!currentClient) return;
+    
+    setLoading(true);
+    try {
+      const response = await axios.get(`/tests?clientId=${currentClient.id}`);
+      setTests(response.data.tests || []);
+    } catch (error) {
+      console.error('Failed to fetch tests:', error);
+      toast.error('Kon tests niet laden');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateTestStatus = async (testId, status) => {
+    try {
+      await axios.patch(`/tests/${testId}`, { status });
+      setTests(tests.map(test => 
+        test.id === testId ? { ...test, status } : test
+      ));
+      toast.success(`Test ${status === 'running' ? 'gestart' : 'gepauzeerd'}`);
+    } catch (error) {
+      toast.error('Kon test status niet wijzigen');
+    }
+  };
+
+  const deleteTest = async (testId) => {
+    if (!window.confirm('Weet je zeker dat je deze test wilt verwijderen?')) return;
+    
+    try {
+      await axios.delete(`/tests/${testId}`);
+      setTests(tests.filter(test => test.id !== testId));
+      toast.success('Test verwijderd');
+    } catch (error) {
+      toast.error('Kon test niet verwijderen');
+    }
+  };
+
+  const generateSnippet = (test) => {
+    const snippet = `<!-- A/B Test Snippet -->
+<script>
+window.abTestConfig = {
+  testId: '${test.id}',
+  clientId: '${currentClient.id}'
+};
+</script>
+<script src="${window.location.origin.replace('abtesting-frontend', 'abtesting-backend')}/track.js"></script>`;
+    
+    navigator.clipboard.writeText(snippet);
+    toast.success('Tracking code gekopieerd!');
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-white">A/B Tests</h1>
+        </div>
+        <div className="animate-pulse space-y-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="bg-gray-800 rounded-xl border border-gray-700 p-6">
+              <div className="h-24 bg-gray-700 rounded"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -401,34 +586,430 @@ const Tests = () => {
         </button>
       </div>
 
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
-        <p className="text-gray-300">Tests functionality coming soon...</p>
+      {showCreateTest && (
+        <CreateTestForm 
+          onClose={() => setShowCreateTest(false)} 
+          onSuccess={() => {
+            fetchTests();
+            setShowCreateTest(false);
+          }}
+        />
+      )}
+
+      <div className="grid gap-6">
+        {tests.length > 0 ? tests.map(test => (
+          <TestCard 
+            key={test.id} 
+            test={test} 
+            onStatusChange={updateTestStatus}
+            onDelete={deleteTest}
+            onGenerateSnippet={generateSnippet}
+          />
+        )) : (
+          <div className="bg-gray-800 rounded-xl border border-gray-700 p-12 text-center">
+            <Split className="mx-auto h-16 w-16 text-gray-400 mb-4" />
+            <h3 className="text-xl font-medium text-white mb-2">Nog geen tests</h3>
+            <p className="text-gray-400 mb-6">Maak je eerste A/B test aan om te beginnen met optimaliseren.</p>
+            <button
+              onClick={() => setShowCreateTest(true)}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors flex items-center space-x-2 mx-auto"
+            >
+              <Plus size={20} />
+              <span>Eerste Test Aanmaken</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-// Simple Clients Component  
+// Create Test Form Component
+const CreateTestForm = ({ onClose, onSuccess }) => {
+  const { currentClient } = useAuth();
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'ab',
+    hypothesis: '',
+    trafficSplit: { A: 50, B: 50 },
+    goal: { type: 'url', value: '' },
+    targetUrl: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.goal.value) {
+      toast.error('Vul alle verplichte velden in');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await axios.post('/tests', {
+        ...formData,
+        clientId: currentClient.id
+      });
+      toast.success('Test succesvol aangemaakt!');
+      onSuccess();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Kon test niet aanmaken');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateTrafficSplit = (variant, value) => {
+    const intValue = Math.max(0, Math.min(100, parseInt(value) || 0));
+    const otherVariant = variant === 'A' ? 'B' : 'A';
+    setFormData({
+      ...formData,
+      trafficSplit: {
+        [variant]: intValue,
+        [otherVariant]: 100 - intValue
+      }
+    });
+  };
+
+  return (
+    <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold text-white">Nieuwe Test Aanmaken</h2>
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-white transition-colors"
+        >
+          <X size={24} />
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Test Naam *</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+              placeholder="Bijv. Homepage Hero Test"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Test Type</label>
+            <select
+              value={formData.type}
+              onChange={(e) => setFormData({...formData, type: e.target.value})}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+            >
+              <option value="ab">A/B Test</option>
+              <option value="split_url">Split URL Test</option>
+              <option value="multivariate">Multivariate Test</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Hypothese</label>
+          <textarea
+            value={formData.hypothesis}
+            onChange={(e) => setFormData({...formData, hypothesis: e.target.value})}
+            className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+            rows="3"
+            placeholder="Beschrijf wat je verwacht dat er gaat gebeuren..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Traffic Verdeling</label>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Variant A (%)</label>
+              <input
+                type="number"
+                value={formData.trafficSplit.A}
+                onChange={(e) => updateTrafficSplit('A', e.target.value)}
+                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                min="0"
+                max="100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Variant B (%)</label>
+              <input
+                type="number"
+                value={formData.trafficSplit.B}
+                onChange={(e) => updateTrafficSplit('B', e.target.value)}
+                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                min="0"
+                max="100"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Conversie Doel *</label>
+          <div className="grid grid-cols-1 gap-4">
+            <select
+              value={formData.goal.type}
+              onChange={(e) => setFormData({
+                ...formData, 
+                goal: { ...formData.goal, type: e.target.value }
+              })}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+            >
+              <option value="url">URL Bereikt</option>
+              <option value="click">Element Geklikt</option>
+              <option value="custom">Custom Event</option>
+            </select>
+            <input
+              type="text"
+              value={formData.goal.value}
+              onChange={(e) => setFormData({
+                ...formData, 
+                goal: { ...formData.goal, value: e.target.value }
+              })}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+              placeholder={formData.goal.type === 'url' ? '/checkout' : formData.goal.type === 'click' ? '#button-id' : 'event-name'}
+              required
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Target URL</label>
+          <input
+            type="url"
+            value={formData.targetUrl}
+            onChange={(e) => setFormData({...formData, targetUrl: e.target.value})}
+            className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+            placeholder="https://example.com/page"
+          />
+        </div>
+
+        <div className="flex space-x-4 pt-4">
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white px-6 py-3 rounded-lg transition-colors"
+          >
+            {loading ? 'Aanmaken...' : 'Test Aanmaken'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg transition-colors"
+          >
+            Annuleren
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+// Test Card Component
+const TestCard = ({ test, onStatusChange, onDelete, onGenerateSnippet }) => {
+  const totalVisitors = test.totalVisitors || 0;
+  const totalConversions = test.totalConversions || 0;
+  const conversionRate = totalVisitors > 0 ? ((totalConversions / totalVisitors) * 100).toFixed(2) : 0;
+  const significance = ((test.significance || 0) * 100).toFixed(0);
+
+  return (
+    <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex-1">
+          <h3 className="text-xl font-semibold text-white">{test.name}</h3>
+          <div className="flex items-center space-x-2 mt-1">
+            <span className="text-sm text-gray-400">
+              {test.type === 'ab' ? 'A/B Test' : 'Split URL Test'}
+            </span>
+            <span className="text-gray-600">•</span>
+            <span className="text-sm text-gray-400">
+              Aangemaakt: {new Date(test.createdAt).toLocaleDateString('nl-NL')}
+            </span>
+          </div>
+          {test.hypothesis && (
+            <p className="text-gray-300 text-sm mt-2 italic">"{test.hypothesis}"</p>
+          )}
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+            test.status === 'running' ? 'bg-green-900 text-green-200' :
+            test.status === 'paused' ? 'bg-yellow-900 text-yellow-200' :
+            'bg-gray-700 text-gray-300'
+          }`}>
+            {test.status === 'running' ? 'Actief' : 
+             test.status === 'paused' ? 'Gepauzeerd' : 'Concept'}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-gray-700 rounded-lg p-4">
+          <div className="text-sm text-gray-400 mb-1">Bezoekers</div>
+          <div className="text-xl font-bold text-white">{totalVisitors.toLocaleString()}</div>
+        </div>
+        <div className="bg-gray-700 rounded-lg p-4">
+          <div className="text-sm text-gray-400 mb-1">Conversies</div>
+          <div className="text-xl font-bold text-white">{totalConversions}</div>
+        </div>
+        <div className="bg-gray-700 rounded-lg p-4">
+          <div className="text-sm text-gray-400 mb-1">Conversie Ratio</div>
+          <div className="text-xl font-bold text-white">{conversionRate}%</div>
+        </div>
+        <div className="bg-gray-700 rounded-lg p-4">
+          <div className="text-sm text-gray-400 mb-1">Significantie</div>
+          <div className="flex items-center">
+            <div className="text-xl font-bold text-white">{significance}%</div>
+            {parseInt(significance) >= 95 && (
+              <CheckCircle className="ml-2 text-green-400" size={20} />
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between pt-4 border-t border-gray-700">
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center text-sm text-gray-300">
+            <Target className="mr-2" size={16} />
+            Doel: {test.goal?.value || 'Niet ingesteld'}
+          </div>
+          {test.targetUrl && (
+            <div className="flex items-center text-sm text-gray-300">
+              <Link2 className="mr-2" size={16} />
+              <a href={test.targetUrl} target="_blank" rel="noopener noreferrer" className="hover:text-purple-400">
+                Target URL
+              </a>
+            </div>
+          )}
+        </div>
+        
+        <div className="flex space-x-2">
+          <button
+            onClick={() => onGenerateSnippet(test)}
+            className="bg-purple-700 hover:bg-purple-600 text-white px-3 py-2 rounded-lg transition-colors flex items-center space-x-1"
+            title="Kopieer tracking code"
+          >
+            <Code size={16} />
+            <span>Code</span>
+          </button>
+          
+          {test.status === 'running' ? (
+            <button
+              onClick={() => onStatusChange(test.id, 'paused')}
+              className="bg-yellow-700 hover:bg-yellow-600 text-white px-3 py-2 rounded-lg transition-colors flex items-center space-x-1"
+            >
+              <Pause size={16} />
+              <span>Pauzeren</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => onStatusChange(test.id, 'running')}
+              className="bg-green-700 hover:bg-green-600 text-white px-3 py-2 rounded-lg transition-colors flex items-center space-x-1"
+            >
+              <Play size={16} />
+              <span>Starten</span>
+            </button>
+          )}
+          
+          <button
+            onClick={() => onDelete(test.id)}
+            className="bg-red-700 hover:bg-red-600 text-white px-3 py-2 rounded-lg transition-colors"
+            title="Verwijder test"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Clients Component with full CRUD
 const Clients = () => {
-  const { clients, currentClient, setCurrentClient } = useAuth();
+  const { clients, currentClient, setCurrentClient, setClients } = useAuth();
+  const [showCreateClient, setShowCreateClient] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('viewer');
+  const [loading, setLoading] = useState(false);
+
+  const createClient = async (clientData) => {
+    setLoading(true);
+    try {
+      const response = await axios.post('/clients', clientData);
+      const newClient = response.data.client;
+      setClients([...clients, newClient]);
+      toast.success('Client succesvol aangemaakt!');
+      setShowCreateClient(false);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Kon client niet aanmaken');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendInvite = async (clientId) => {
+    if (!inviteEmail) {
+      toast.error('Vul een email adres in');
+      return;
+    }
+
+    try {
+      await axios.post('/auth/invite', {
+        email: inviteEmail,
+        clientId,
+        role: inviteRole
+      });
+      toast.success(`Uitnodiging verstuurd naar ${inviteEmail}`);
+      setInviteEmail('');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Kon uitnodiging niet versturen');
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-white">Clients</h1>
+        <button
+          onClick={() => setShowCreateClient(true)}
+          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
+        >
+          <Plus size={20} />
+          <span>Nieuwe Client</span>
+        </button>
       </div>
+
+      {showCreateClient && (
+        <CreateClientForm 
+          onClose={() => setShowCreateClient(false)} 
+          onSubmit={createClient}
+          loading={loading}
+        />
+      )}
 
       <div className="grid gap-6">
         {clients.map(client => (
           <div key={client.id} className="bg-gray-800 rounded-xl border border-gray-700 p-6">
-            <div className="flex justify-between items-start">
+            <div className="flex justify-between items-start mb-4">
               <div>
                 <h3 className="text-xl font-semibold text-white">{client.name}</h3>
                 <p className="text-gray-400">{client.domain}</p>
+                <p className="text-xs text-gray-500">
+                  Aangemaakt: {new Date(client.createdAt || client.created).toLocaleDateString('nl-NL')}
+                </p>
               </div>
               
               <button
-                onClick={() => setCurrentClient(client)}
+                onClick={() => {
+                  setCurrentClient(client);
+                  toast.success(`Gewisseld naar ${client.name}`);
+                }}
                 className={`px-4 py-2 rounded-lg transition-colors ${
                   currentClient?.id === client.id 
                     ? 'bg-purple-600 text-white' 
@@ -438,6 +1019,39 @@ const Clients = () => {
                 {currentClient?.id === client.id ? 'Actief' : 'Selecteren'}
               </button>
             </div>
+
+            <div className="border-t border-gray-700 pt-4">
+              <h4 className="font-medium text-white mb-4">Gebruikers Uitnodigen</h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                  placeholder="email@example.com"
+                />
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                  className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                >
+                  <option value="viewer">Viewer</option>
+                  <option value="editor">Editor</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <button
+                  onClick={() => sendInvite(client.id)}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center space-x-1"
+                >
+                  <Mail size={16} />
+                  <span>Uitnodigen</span>
+                </button>
+                <div className="text-sm text-gray-400 flex items-center">
+                  <Globe size={16} className="mr-1" />
+                  API: /api/clients/{client.id}/status
+                </div>
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -445,23 +1059,162 @@ const Clients = () => {
   );
 };
 
-// Simple Settings Component
+// Create Client Form Component
+const CreateClientForm = ({ onClose, onSubmit, loading }) => {
+  const [formData, setFormData] = useState({ name: '', domain: '' });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.domain) {
+      toast.error('Vul alle velden in');
+      return;
+    }
+    onSubmit(formData);
+  };
+
+  return (
+    <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-semibold text-white">Nieuwe Client Aanmaken</h3>
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-white transition-colors"
+        >
+          <X size={24} />
+        </button>
+      </div>
+      
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Client Naam</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+              placeholder="Bijv. E-commerce Store"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Domein</label>
+            <input
+              type="text"
+              value={formData.domain}
+              onChange={(e) => setFormData({...formData, domain: e.target.value})}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+              placeholder="shop.example.com"
+              required
+            />
+          </div>
+        </div>
+        <div className="flex space-x-4 pt-4">
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white px-6 py-3 rounded-lg transition-colors"
+          >
+            {loading ? 'Aanmaken...' : 'Client Aanmaken'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg transition-colors"
+          >
+            Annuleren
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+// Settings Component
 const SettingsPage = () => {
+  const { currentClient } = useAuth();
+  const [settings, setSettings] = useState({
+    significanceThreshold: 0.95,
+    minimumSampleSize: 1000,
+    autoStart: false,
+    webhookUrl: ''
+  });
+  const [saving, setSaving] = useState(false);
+
+  const saveSettings = async () => {
+    setSaving(true);
+    try {
+      await axios.patch(`/clients/${currentClient.id}/settings`, settings);
+      toast.success('Instellingen opgeslagen');
+    } catch (error) {
+      toast.error('Kon instellingen niet opslaan');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-white">Instellingen</h1>
       
       <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Platform Instellingen</h3>
-        <p className="text-gray-300">Settings functionality coming soon...</p>
+        <h3 className="text-lg font-semibold text-white mb-4">Statistiek Instellingen</h3>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-gray-300">Significantie Drempel</span>
+            <select
+              value={settings.significanceThreshold}
+              onChange={(e) => setSettings({...settings, significanceThreshold: parseFloat(e.target.value)})}
+              className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+            >
+              <option value="0.90">90%</option>
+              <option value="0.95">95%</option>
+              <option value="0.99">99%</option>
+            </select>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <span className="text-gray-300">Minimum Sample Size</span>
+            <input
+              type="number"
+              value={settings.minimumSampleSize}
+              onChange={(e) => setSettings({...settings, minimumSampleSize: parseInt(e.target.value)})}
+              className="w-32 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+            />
+          </div>
+        </div>
       </div>
+
+      <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">API Configuratie</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-gray-300 mb-2">Webhook URL</label>
+            <input
+              type="url"
+              value={settings.webhookUrl}
+              onChange={(e) => setSettings({...settings, webhookUrl: e.target.value})}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+              placeholder="https://your-app.com/webhook"
+            />
+          </div>
+        </div>
+      </div>
+
+      <button
+        onClick={saveSettings}
+        disabled={saving}
+        className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white px-6 py-3 rounded-lg transition-colors"
+      >
+        {saving ? 'Opslaan...' : 'Instellingen Opslaan'}
+      </button>
     </div>
   );
 };
 
 // Header Component
 const Header = () => {
-  const { user, currentClient, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
 
   return (
@@ -473,18 +1226,15 @@ const Header = () => {
               <BarChart3 className="text-white" size={24} />
             </div>
             <h1 className="text-xl font-bold text-white">A/B Testing Platform</h1>
-            
-            {currentClient && (
-              <div className="bg-gray-700 px-4 py-2 rounded-lg text-sm text-gray-300">
-                {currentClient.name}
-              </div>
-            )}
           </div>
           
           <div className="flex items-center space-x-4">
+            <ClientSwitcher />
+            
             <button
               onClick={toggleTheme}
-              className="p-2 text-gray-400 hover:text-white transition-colors"
+              className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-700"
+              title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
             >
               {isDark ? <Sun size={20} /> : <Moon size={20} />}
             </button>
@@ -496,7 +1246,7 @@ const Header = () => {
             
             <button
               onClick={logout}
-              className="p-2 text-gray-400 hover:text-red-400 transition-colors"
+              className="p-2 text-gray-400 hover:text-red-400 transition-colors rounded-lg hover:bg-gray-700"
               title="Uitloggen"
             >
               <LogOut size={20} />
@@ -582,7 +1332,10 @@ const App = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white">Laden...</div>
+        <div className="text-white flex items-center space-x-3">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          <span>Laden...</span>
+        </div>
       </div>
     );
   }
