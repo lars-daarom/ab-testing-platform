@@ -1,5 +1,5 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
@@ -98,21 +98,25 @@ const AuthProvider = ({ children }) => {
     }
   };
 
+  const authenticate = (newToken, userData, userClients) => {
+    setToken(newToken);
+    setUser(userData);
+    setClients(userClients);
+    if (userClients.length > 0) {
+      setCurrentClient(userClients[0]);
+    }
+
+    localStorage.setItem('token', newToken);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+  };
+
   const login = async (email, password) => {
     try {
       const response = await axios.post('/auth/login', { email, password });
       const { token: newToken, user: userData, clients: userClients } = response.data;
-      
-      setToken(newToken);
-      setUser(userData);
-      setClients(userClients);
-      if (userClients.length > 0) {
-        setCurrentClient(userClients[0]);
-      }
-      
-      localStorage.setItem('token', newToken);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-      
+
+      authenticate(newToken, userData, userClients);
+
       toast.success('Succesvol ingelogd!');
       return true;
     } catch (error) {
@@ -125,15 +129,10 @@ const AuthProvider = ({ children }) => {
     try {
       const response = await axios.post('/auth/register', { email, password, name });
       const { token: newToken, user: userData, client } = response.data;
-      
-      setToken(newToken);
-      setUser(userData);
-      setClients([client]);
+
+      authenticate(newToken, userData, [client]);
       setCurrentClient(client);
-      
-      localStorage.setItem('token', newToken);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-      
+
       toast.success('Account succesvol aangemaakt!');
       return true;
     } catch (error) {
@@ -162,6 +161,7 @@ const AuthProvider = ({ children }) => {
     register,
     logout,
     loading,
+    authenticate,
     isAuthenticated: !!user
   };
 
@@ -186,7 +186,7 @@ const useTheme = () => {
 const ThemeProvider = ({ children }) => {
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('theme');
-    return saved ? JSON.parse(saved) : true; // Default to dark mode
+    return saved ? JSON.parse(saved) : false; // Default to light mode
   });
 
   useEffect(() => {
@@ -313,6 +313,86 @@ const LoginForm = () => {
             {isLogin ? 'Nog geen account? Registreer hier' : 'Al een account? Log hier in'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// Accept Invitation Component
+const AcceptInvitation = () => {
+  const navigate = useNavigate();
+  const { authenticate } = useAuth();
+  const [formData, setFormData] = useState({ name: '', password: '' });
+  const [loading, setLoading] = useState(false);
+  const token = new URLSearchParams(window.location.search).get('token');
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const response = await axios.post('/auth/accept-invitation', {
+        token,
+        name: formData.name,
+        password: formData.password
+      });
+      const { token: authToken, user, client } = response.data;
+      authenticate(authToken, user, [client]);
+      toast.success('Uitnodiging geaccepteerd');
+      navigate('/');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Uitnodiging accepteren mislukt');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!token) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+        Ongeldige uitnodiging.
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md">
+        <h1 className="text-2xl font-bold mb-6 text-center text-gray-900 dark:text-white">Uitnodiging Accepteren</h1>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Naam</label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Wachtwoord</label>
+            <input
+              type="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white py-2 rounded-lg transition-colors"
+          >
+            {loading ? 'Verwerken...' : 'Accepteren'}
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -1237,35 +1317,35 @@ const Header = () => {
   const { isDark, toggleTheme } = useTheme();
 
   return (
-    <header className="bg-gray-800 border-b border-gray-700">
+    <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-4">
             <div className="bg-purple-600 w-10 h-10 rounded-xl flex items-center justify-center">
               <BarChart3 className="text-white" size={24} />
             </div>
-            <h1 className="text-xl font-bold text-white">A/B Testing Platform</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">A/B Testing Platform</h1>
           </div>
-          
+
           <div className="flex items-center space-x-4">
             <ClientSwitcher />
-            
+
             <button
               onClick={toggleTheme}
-              className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-700"
+              className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
               title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
             >
               {isDark ? <Sun size={20} /> : <Moon size={20} />}
             </button>
-            
-            <div className="flex items-center space-x-2 text-gray-300">
+
+            <div className="flex items-center space-x-2 text-gray-700 dark:text-gray-300">
               <User size={16} />
               <span className="text-sm">{user?.name}</span>
             </div>
-            
+
             <button
               onClick={logout}
-              className="p-2 text-gray-400 hover:text-red-400 transition-colors rounded-lg hover:bg-gray-700"
+              className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
               title="Uitloggen"
             >
               <LogOut size={20} />
@@ -1287,7 +1367,7 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
   ];
 
   return (
-    <nav className="w-64 bg-gray-800 border-r border-gray-700 min-h-screen">
+    <nav className="w-64 bg-gray-100 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 min-h-screen">
       <div className="p-4">
         <div className="space-y-2">
           {menuItems.map(item => (
@@ -1297,7 +1377,7 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 activeTab === item.id
                   ? 'bg-purple-600 text-white'
-                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               <item.icon size={20} />
@@ -1330,7 +1410,7 @@ const MainApp = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
       <Header />
       <div className="flex">
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -1350,8 +1430,8 @@ const App = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white flex items-center space-x-3">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-900 dark:text-white flex items-center space-x-3">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
           <span>Laden...</span>
         </div>
@@ -1359,7 +1439,12 @@ const App = () => {
     );
   }
 
-  return isAuthenticated ? <MainApp /> : <LoginForm />;
+  return (
+    <Routes>
+      <Route path="/accept-invitation" element={<AcceptInvitation />} />
+      <Route path="/*" element={isAuthenticated ? <MainApp /> : <LoginForm />} />
+    </Routes>
+  );
 };
 
 // Root App with Providers

@@ -6,7 +6,7 @@ const path = require('path');
 require('dotenv').config();
 
 const { sequelize } = require('./models');
-const authRoutes = require('./routes/auth');
+const { router: authRoutes } = require('./routes/auth');
 const clientRoutes = require('./routes/clients');
 const testRoutes = require('./routes/tests');
 const trackingRoutes = require('./routes/tracking');
