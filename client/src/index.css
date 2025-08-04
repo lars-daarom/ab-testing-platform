@@ -22,11 +22,11 @@
 /* Firefox scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: theme('colors.gray.400') theme('colors.gray.200');
+  scrollbar-color: #9ca3af #e5e7eb;
 }
 
 .dark * {
-  scrollbar-color: theme('colors.gray.600') theme('colors.gray.800');
+  scrollbar-color: #6b7280 #374151;
 }
 
 /* Smooth transitions */
@@ -86,7 +86,6 @@ textarea:focus-visible {
   @apply px-6 py-4 border-t border-gray-200 dark:border-gray-700;
 }
 
-
 /* Loading animations */
 @keyframes shimmer {
   0% {
@@ -108,35 +107,6 @@ textarea:focus-visible {
   background-size: 200px 100%;
 }
 
-/* Toast notifications custom styles */
-.toast-success {
-  @apply bg-green-600 text-white;
-}
-
-.toast-error {
-  @apply bg-red-600 text-white;
-}
-
-.toast-info {
-  @apply bg-blue-600 text-white;
-}
-
-.toast-warning {
-  @apply bg-yellow-600 text-white;
-}
-
-/* Dark mode utilities */
-.glass-effect {
-  backdrop-filter: blur(10px);
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.dark .glass-effect {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
 /* Form styles */
 .form-input {
   @apply block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent;
@@ -154,7 +124,8 @@ textarea:focus-visible {
 }
 
 .form-textarea {
-  @apply form-input resize-vertical;
+  @apply form-input;
+  resize: vertical;
 }
 
 .form-label {
@@ -230,6 +201,18 @@ textarea:focus-visible {
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+/* Utilities */
+.glass-effect {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .glass-effect {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Print styles */
