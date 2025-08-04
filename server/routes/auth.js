@@ -374,5 +374,7 @@ router.post('/logout', authenticateToken, (req, res) => {
 });
 
 // Export both router and middleware
-router.authenticateToken = authenticateToken;
-module.exports = router;
+module.exports = {
+  router,
+  authenticateToken
+};
