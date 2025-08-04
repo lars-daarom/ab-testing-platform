@@ -324,7 +324,29 @@ const AcceptInvitation = () => {
   const { authenticate } = useAuth();
   const [formData, setFormData] = useState({ name: '', password: '' });
   const [loading, setLoading] = useState(false);
+  const [needsAccount, setNeedsAccount] = useState(false);
   const token = new URLSearchParams(window.location.search).get('token');
+
+  useEffect(() => {
+    const attemptAccept = async () => {
+      if (!token) return;
+      setLoading(true);
+      try {
+        const response = await axios.post('/auth/accept-invitation', { token });
+        const { token: authToken, user, client } = response.data;
+        authenticate(authToken, user, [client]);
+        toast.success('Uitnodiging geaccepteerd');
+        navigate('/');
+      } catch (error) {
+        // If the user doesn't exist yet, they need to provide details
+        setNeedsAccount(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    attemptAccept();
+  }, [token, authenticate, navigate]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -356,6 +378,21 @@ const AcceptInvitation = () => {
         Ongeldige uitnodiging.
       </div>
     );
+  }
+
+  if (loading && !needsAccount) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-gray-900 dark:text-white flex items-center space-x-3">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          <span>Uitnodiging wordt gecontroleerd...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!needsAccount) {
+    return null; // Shouldn't happen but keeps component safe
   }
 
   return (
