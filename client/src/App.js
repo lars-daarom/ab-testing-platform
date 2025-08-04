@@ -37,6 +37,24 @@ import {
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 axios.defaults.baseURL = API_BASE_URL;
 
+// Helper function for date formatting
+const formatDate = (dateString) => {
+  if (!dateString) return 'Onbekend';
+  
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Onbekend';
+    
+    return date.toLocaleDateString('nl-NL', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  } catch (error) {
+    return 'Onbekend';
+  }
+};
+
 // Auth Context
 const AuthContext = createContext();
 
@@ -463,7 +481,8 @@ const Dashboard = () => {
                     <h3 className="font-medium text-white">{test.name}</h3>
                     <p className="text-sm text-gray-400">
                       {test.type === 'ab' ? 'A/B Test' : 'Split URL'} • 
-                      Status: {test.status === 'running' ? 'Actief' : test.status === 'paused' ? 'Gepauzeerd' : 'Concept'}
+                      Status: {test.status === 'running' ? 'Actief' : test.status === 'paused' ? 'Gepauzeerd' : 'Concept'} • 
+                      {formatDate(test.createdAt)}
                     </p>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -829,7 +848,7 @@ const TestCard = ({ test, onStatusChange, onDelete, onGenerateSnippet }) => {
             </span>
             <span className="text-gray-600">•</span>
             <span className="text-sm text-gray-400">
-              Aangemaakt: {new Date(test.createdAt).toLocaleDateString('nl-NL')}
+              Aangemaakt: {formatDate(test.createdAt)}
             </span>
           </div>
           {test.hypothesis && (
@@ -1001,7 +1020,7 @@ const Clients = () => {
                 <h3 className="text-xl font-semibold text-white">{client.name}</h3>
                 <p className="text-gray-400">{client.domain}</p>
                 <p className="text-xs text-gray-500">
-                  Aangemaakt: {new Date(client.createdAt || client.created).toLocaleDateString('nl-NL')}
+                  Aangemaakt: {formatDate(client.createdAt || client.created)}
                 </p>
               </div>
               
