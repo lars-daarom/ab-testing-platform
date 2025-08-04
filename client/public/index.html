@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="A/B Testing Platform - Professional conversion optimization tool" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    
+    <!-- Preconnect to API domain for faster requests -->
+    <link rel="preconnect" href="https://abtesting-backend-gu8d.onrender.com">
+    
+    <!-- Meta tags for SEO -->
+    <meta property="og:title" content="A/B Testing Platform" />
+    <meta property="og:description" content="Professional A/B testing and conversion optimization platform" />
+    <meta property="og:type" content="website" />
+    
+    <title>A/B Testing Platform</title>
+    
+    <!-- Custom CSS variables for theming -->
+    <style>
+      :root {
+        --primary-color: #6366f1;
+        --primary-dark: #4f46e5;
+        --background-light: #ffffff;
+        --background-dark: #111827;
+        --text-light: #111827;
+        --text-dark: #f9fafb;
+      }
+      
+      /* Loading spinner */
+      .loading-spinner {
+        border: 4px solid #f3f4f6;
+        border-top: 4px solid var(--primary-color);
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 20px auto;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      /* Initial loading state */
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background-color: var(--background-light);
+        color: var(--text-light);
+      }
+      
+      /* Dark mode */
+      body.dark {
+        background-color: var(--background-dark);
+        color: var(--text-dark);
+      }
+      
+      code {
+        font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+          monospace;
+      }
+      
+      /* Hide scrollbar but keep functionality */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+      }
+      
+      ::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+      }
+      
+      ::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+      }
+      
+      /* Dark mode scrollbar */
+      body.dark ::-webkit-scrollbar-track {
+        background: #374151;
+      }
+      
+      body.dark ::-webkit-scrollbar-thumb {
+        background: #6b7280;
+      }
+      
+      body.dark ::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root">
+      <!-- Loading fallback -->
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh;">
+        <div class="loading-spinner"></div>
+        <p style="margin-top: 20px; color: #6b7280;">Loading A/B Testing Platform...</p>
+      </div>
+    </div>
+    
+    <!-- 
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+      
+      You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+      
+      To begin the development, run `npm start` or `yarn start`.
+      To create a production bundle, use `npm run build` or `yarn build`.
+    -->
+  </body>
+</html>
