@@ -4,7 +4,7 @@ const nodemailer = require('nodemailer');
 const createTransporter = () => {
   // Use environment variables for email configuration
   if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT) || 587,
       secure: process.env.SMTP_SECURE === 'true',
@@ -17,7 +17,7 @@ const createTransporter = () => {
 
   // Fallback to Gmail (less secure, for development only)
   if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: process.env.GMAIL_USER,
@@ -28,7 +28,7 @@ const createTransporter = () => {
 
   // For development/testing - log emails to console
   if (process.env.NODE_ENV === 'development') {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       streamTransport: true,
       newline: 'unix',
       buffer: true
