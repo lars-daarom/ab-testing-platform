@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
-const { User, Client, UserClient, Invitation } = require('../models');
+const { User, Client, UserClient, Invitation, Agency } = require('../models');
 const { generateApiKey, generateToken } = require('../utils/helpers');
 const { sendEmail, sendInvitationEmail, sendWelcomeEmail } = require('../utils/email');
 const router = express.Router();
@@ -74,19 +74,26 @@ router.post('/register', [
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
+    // Create agency for user
+    const agency = await Agency.create({
+      name: `${name}'s Agency`
+    });
+
     // Create user
     const user = await User.create({
       email,
       password: hashedPassword,
       name,
-      role: 'admin' // First user is admin
+      role: 'admin', // First user is admin
+      agencyId: agency.id
     });
 
     // Create default client for new user
     const client = await Client.create({
       name: `${name}'s Workspace`,
       domain: 'example.com',
-      apiKey: generateApiKey()
+      apiKey: generateApiKey(),
+      agencyId: agency.id
     });
 
     // Associate user with client
@@ -119,6 +126,11 @@ router.post('/register', [
         name: user.name,
         role: user.role
       },
+      agency: {
+        id: agency.id,
+        name: agency.name,
+        settings: agency.settings
+      },
       client: {
         id: client.id,
         name: client.name,
@@ -145,13 +157,16 @@ router.post('/login', [
     const { email, password } = req.body;
 
     // Find user
-    const user = await User.findOne({ 
+    const user = await User.findOne({
       where: { email },
-      include: [{
-        model: Client,
-        through: UserClient,
-        attributes: ['id', 'name', 'domain']
-      }]
+      include: [
+        { model: Agency, attributes: ['id', 'name', 'settings'] },
+        {
+          model: Client,
+          through: UserClient,
+          attributes: ['id', 'name', 'domain']
+        }
+      ]
     });
 
     if (!user) {
@@ -184,6 +199,7 @@ router.post('/login', [
         role: user.role,
         lastLogin: user.lastLogin
       },
+      agency: user.Agency,
       clients: user.Clients || []
     });
   } catch (error) {
@@ -344,11 +360,14 @@ router.get('/me', authenticateToken, async (req, res) => {
   try {
     const user = await User.findByPk(req.user.userId, {
       attributes: ['id', 'email', 'name', 'role', 'lastLogin'],
-      include: [{
-        model: Client,
-        through: UserClient,
-        attributes: ['id', 'name', 'domain']
-      }]
+      include: [
+        { model: Agency, attributes: ['id', 'name', 'settings'] },
+        {
+          model: Client,
+          through: UserClient,
+          attributes: ['id', 'name', 'domain']
+        }
+      ]
     });
 
     if (!user) {
@@ -363,6 +382,7 @@ router.get('/me', authenticateToken, async (req, res) => {
         role: user.role,
         lastLogin: user.lastLogin
       },
+      agency: user.Agency,
       clients: user.Clients || []
     });
   } catch (error) {

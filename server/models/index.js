@@ -15,6 +15,26 @@ const sequelize = new Sequelize(
   }
 );
 
+// Agency Model
+const Agency = sequelize.define('Agency', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  settings: {
+    type: DataTypes.JSONB,
+    defaultValue: {}
+  }
+}, {
+  tableName: 'agencies',
+  timestamps: true
+});
+
 // User Model
 const User = sequelize.define('User', {
   id: {
@@ -48,6 +68,10 @@ const User = sequelize.define('User', {
   },
   lastLogin: {
     type: DataTypes.DATE
+  },
+  agencyId: {
+    type: DataTypes.UUID,
+    allowNull: false
   }
 }, {
   tableName: 'users',
@@ -74,11 +98,16 @@ const Client = sequelize.define('Client', {
     allowNull: false,
     unique: true
   },
+  agencyId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
   settings: {
     type: DataTypes.JSONB,
     defaultValue: {
       significanceThreshold: 0.95,
       minimumSampleSize: 1000,
+      goals: [],
       autoStart: false,
       webhookUrl: null
     }
@@ -328,6 +357,12 @@ Invitation.belongsTo(Client, { foreignKey: 'clientId' });
 User.hasMany(Invitation, { foreignKey: 'invitedBy' });
 Invitation.belongsTo(User, { foreignKey: 'invitedBy' });
 
+Agency.hasMany(User, { foreignKey: 'agencyId', onDelete: 'CASCADE' });
+User.belongsTo(Agency, { foreignKey: 'agencyId' });
+
+Agency.hasMany(Client, { foreignKey: 'agencyId', onDelete: 'CASCADE' });
+Client.belongsTo(Agency, { foreignKey: 'agencyId' });
+
 // Export models and sequelize instance
 module.exports = {
   sequelize,
@@ -337,5 +372,6 @@ module.exports = {
   Visitor,
   Conversion,
   UserClient,
-  Invitation
+  Invitation,
+  Agency
 };
