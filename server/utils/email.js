@@ -92,12 +92,13 @@ const sendEmail = async (options) => {
  * @param {string} options.clientName - Name of client/workspace
  * @param {string} options.role - User role
  * @param {string} options.token - Invitation token
+ * @param {string} [options.frontendUrl] - Frontend base URL
  * @returns {Promise} Promise that resolves when email is sent
  */
 const sendInvitationEmail = async (options) => {
-  const { to, inviterName, clientName, role, token } = options;
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-  const acceptUrl = `${frontendUrl}/accept-invitation?token=${token}`;
+  const { to, inviterName, clientName, role, token, frontendUrl } = options;
+  const baseUrl = frontendUrl || process.env.FRONTEND_URL || 'http://localhost:3000';
+  const acceptUrl = `${baseUrl}/accept-invitation?token=${token}`;
 
   const subject = `Uitnodiging voor ${clientName} - A/B Testing Platform`;
   
