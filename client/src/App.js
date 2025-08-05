@@ -68,6 +68,7 @@ const useAuth = () => {
 
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [agency, setAgency] = useState(null);
   const [clients, setClients] = useState([]);
   const [currentClient, setCurrentClient] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -86,6 +87,7 @@ const AuthProvider = ({ children }) => {
     try {
       const response = await axios.get('/auth/me');
       setUser(response.data.user);
+      setAgency(response.data.agency);
       setClients(response.data.clients);
       if (response.data.clients.length > 0) {
         setCurrentClient(response.data.clients[0]);
@@ -98,9 +100,10 @@ const AuthProvider = ({ children }) => {
     }
   };
 
-  const authenticate = (newToken, userData, userClients) => {
+  const authenticate = (newToken, userData, userClients, agencyData) => {
     setToken(newToken);
     setUser(userData);
+    setAgency(agencyData);
     setClients(userClients);
     if (userClients.length > 0) {
       setCurrentClient(userClients[0]);
@@ -113,9 +116,9 @@ const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const response = await axios.post('/auth/login', { email, password });
-      const { token: newToken, user: userData, clients: userClients } = response.data;
+      const { token: newToken, user: userData, clients: userClients, agency: agencyData } = response.data;
 
-      authenticate(newToken, userData, userClients);
+      authenticate(newToken, userData, userClients, agencyData);
 
       toast.success('Succesvol ingelogd!');
       return true;
@@ -128,9 +131,9 @@ const AuthProvider = ({ children }) => {
   const register = async (email, password, name) => {
     try {
       const response = await axios.post('/auth/register', { email, password, name });
-      const { token: newToken, user: userData, client } = response.data;
+      const { token: newToken, user: userData, client, agency: agencyData } = response.data;
 
-      authenticate(newToken, userData, [client]);
+      authenticate(newToken, userData, [client], agencyData);
       setCurrentClient(client);
 
       toast.success('Account succesvol aangemaakt!');
@@ -144,6 +147,7 @@ const AuthProvider = ({ children }) => {
   const logout = () => {
     setToken(null);
     setUser(null);
+    setAgency(null);
     setClients([]);
     setCurrentClient(null);
     localStorage.removeItem('token');
@@ -153,6 +157,7 @@ const AuthProvider = ({ children }) => {
 
   const value = {
     user,
+    agency,
     clients,
     currentClient,
     setCurrentClient,
@@ -1317,8 +1322,8 @@ const Header = () => {
   const { isDark, toggleTheme } = useTheme();
 
   return (
-    <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 w-full">
+      <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-4">
             <div className="bg-purple-600 w-10 h-10 rounded-xl flex items-center justify-center">
@@ -1410,10 +1415,10 @@ const MainApp = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
-      <Header />
-      <div className="flex">
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+    <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 flex">
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <div className="flex-1 flex flex-col">
+        <Header />
         <main className="flex-1 p-8">
           <div className="max-w-7xl mx-auto">
             {renderContent()}

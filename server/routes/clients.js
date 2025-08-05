@@ -105,11 +105,17 @@ router.post('/', authenticateToken, [
 
     const { name, domain } = req.body;
 
+    const user = await User.findByPk(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     // Create client
     const client = await Client.create({
       name,
       domain,
-      apiKey: generateApiKey()
+      apiKey: generateApiKey(),
+      agencyId: user.agencyId
     });
 
     // Associate user with client as admin
