@@ -221,6 +221,7 @@ router.post('/invite', authenticateToken, [
     }
 
     const inviterUser = await User.findByPk(req.user.userId);
+    const frontendUrl = process.env.FRONTEND_URL || req.get('origin') || 'http://localhost:3000';
 
     // Create invitation token
     const token = generateToken(32);
@@ -242,10 +243,12 @@ router.post('/invite', authenticateToken, [
         inviterName: inviterUser?.name || 'Iemand',
         clientName: client.name,
         role,
-        token
+        token,
+        frontendUrl
       });
     } catch (emailError) {
       console.error('Email send failed:', emailError);
+      return res.status(500).json({ error: 'Failed to send invitation email' });
     }
 
     res.json({ message: 'Invitation sent successfully' });
