@@ -9,8 +9,9 @@ import {
   BarChart3, 
   Target, 
   Code, 
-  Users, 
+  Users,
   Mail,
+  Lock,
   Play,
   Pause,
   TrendingUp,
@@ -30,7 +31,8 @@ import {
   Link2,
   Trash2,
   Edit,
-  Copy
+  Copy,
+  Dot
 } from 'lucide-react';
 
 // API configuration
@@ -247,7 +249,7 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center p-4">
+    <div className="h-screen w-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center">
       <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-8 border border-gray-700">
         <div className="text-center mb-8">
           <div className="bg-purple-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -277,28 +279,33 @@ const LoginForm = () => {
           
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white"
-              placeholder="je@email.com"
-              required
-            />
+            <div className="flex items-center">
+              <Mail className="text-gray-400 mr-2" size={20} />
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white"
+                placeholder="je@email.com"
+                required
+              />
+            </div>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Wachtwoord</label>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white"
-              placeholder="••••••••"
-              required
-            />
+            <div className="flex items-center">
+              <Lock className="text-gray-400 mr-2" size={20} />
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white"
+                required
+              />
+            </div>
           </div>
           
           <button
@@ -564,9 +571,11 @@ const Dashboard = () => {
                 <div key={test.id} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
                   <div>
                     <h3 className="font-medium text-white">{test.name}</h3>
-                    <p className="text-sm text-gray-400">
-                      {test.type === 'ab' ? 'A/B Test' : 'Split URL'} • 
-                      Status: {test.status === 'running' ? 'Actief' : test.status === 'paused' ? 'Gepauzeerd' : 'Concept'} • 
+                    <p className="text-sm text-gray-400 flex items-center">
+                      {test.type === 'ab' ? 'A/B Test' : 'Split URL'}
+                      <Dot className="text-gray-500 mx-1" size={16} />
+                      Status: {test.status === 'running' ? 'Actief' : test.status === 'paused' ? 'Gepauzeerd' : 'Concept'}
+                      <Dot className="text-gray-500 mx-1" size={16} />
                       {formatDate(test.createdAt)}
                     </p>
                   </div>
@@ -931,7 +940,7 @@ const TestCard = ({ test, onStatusChange, onDelete, onGenerateSnippet }) => {
             <span className="text-sm text-gray-400">
               {test.type === 'ab' ? 'A/B Test' : 'Split URL Test'}
             </span>
-            <span className="text-gray-600">•</span>
+            <Dot className="text-gray-600" size={16} />
             <span className="text-sm text-gray-400">
               Aangemaakt: {formatDate(test.createdAt)}
             </span>
