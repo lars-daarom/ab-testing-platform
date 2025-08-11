@@ -2,6 +2,7 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
+import { supabase } from './supabaseClient';
 import {
   User,
   Plus,
@@ -75,16 +76,48 @@ const AuthProvider = ({ children }) => {
   const [clients, setClients] = useState([]);
   const [currentClient, setCurrentClient] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(null);
 
   useEffect(() => {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      fetchUserData();
-    } else {
-      setLoading(false);
-    }
-  }, [token]);
+    const initSession = async () => {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      const newToken = session?.access_token;
+      if (newToken) {
+        setToken(newToken);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+        fetchUserData();
+      } else {
+        setLoading(false);
+      }
+    };
+
+    initSession();
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const newToken = session?.access_token;
+      if (newToken) {
+        setToken(newToken);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+        fetchUserData();
+      } else {
+        setToken(null);
+        delete axios.defaults.headers.common['Authorization'];
+        setUser(null);
+        setAgency(null);
+        setClients([]);
+        setCurrentClient(null);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const fetchUserData = async () => {
     try {
@@ -103,7 +136,8 @@ const AuthProvider = ({ children }) => {
     }
   };
 
-  const authenticate = (newToken, userData, userClients, agencyData) => {
+  const authenticate = async (newToken, userData, userClients, agencyData) => {
+    await supabase.auth.setSession({ access_token: newToken, refresh_token: newToken });
     setToken(newToken);
     setUser(userData);
     setAgency(agencyData);
@@ -111,50 +145,39 @@ const AuthProvider = ({ children }) => {
     if (userClients.length > 0) {
       setCurrentClient(userClients[0]);
     }
-
-    localStorage.setItem('token', newToken);
     axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
   };
 
   const login = async (email, password) => {
     try {
-      const response = await axios.post('/auth/login', { email, password });
-      const { token: newToken, user: userData, clients: userClients, agency: agencyData } = response.data;
-
-      authenticate(newToken, userData, userClients, agencyData);
-
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
       toast.success('Succesvol ingelogd!');
       return true;
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Login mislukt');
+      toast.error(error.message || 'Login mislukt');
       return false;
     }
   };
 
   const register = async (email, password, name) => {
     try {
-      const response = await axios.post('/auth/register', { email, password, name });
-      const { token: newToken, user: userData, client, agency: agencyData } = response.data;
-
-      authenticate(newToken, userData, [client], agencyData);
-      setCurrentClient(client);
-
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { name } }
+      });
+      if (error) throw error;
       toast.success('Account succesvol aangemaakt!');
       return true;
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Registratie mislukt');
+      toast.error(error.message || 'Registratie mislukt');
       return false;
     }
   };
 
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    setAgency(null);
-    setClients([]);
-    setCurrentClient(null);
-    localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
+  const logout = async () => {
+    await supabase.auth.signOut();
     toast.success('Uitgelogd');
   };
 
@@ -355,7 +378,7 @@ const AcceptInvitation = () => {
         password: formData.password
       });
       const { token: authToken, user, client } = response.data;
-      authenticate(authToken, user, [client]);
+      await authenticate(authToken, user, [client]);
       toast.success('Uitnodiging geaccepteerd');
       navigate('/');
     } catch (error) {
