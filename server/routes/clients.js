@@ -1,14 +1,14 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { Client, User, UserClient, Test } = require('../models');
-const { authenticateToken } = require('./auth');
+const authenticateToken = require('../middleware/auth');
 const { generateApiKey } = require('../utils/helpers');
 const router = express.Router();
 
 // Get all clients for authenticated user
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.userId, {
+    const user = await User.findByPk(req.user.id, {
       include: [{
         model: Client,
         through: UserClient,
@@ -48,7 +48,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     // Check if user has access to this client
     const userClient = await UserClient.findOne({
       where: {
-        userId: req.user.userId,
+        userId: req.user.id,
         clientId: id
       }
     });
@@ -105,7 +105,7 @@ router.post('/', authenticateToken, [
 
     const { name, domain } = req.body;
 
-    const user = await User.findByPk(req.user.userId);
+    const user = await User.findByPk(req.user.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -120,7 +120,7 @@ router.post('/', authenticateToken, [
 
     // Associate user with client as admin
     await UserClient.create({
-      userId: req.user.userId,
+      userId: req.user.id,
       clientId: client.id,
       role: 'admin',
       permissions: {
@@ -167,7 +167,7 @@ router.patch('/:id', authenticateToken, [
     // Check if user has admin access to this client
     const userClient = await UserClient.findOne({
       where: {
-        userId: req.user.userId,
+        userId: req.user.id,
         clientId: id,
         role: 'admin'
       }
@@ -210,7 +210,7 @@ router.patch('/:id/settings', authenticateToken, async (req, res) => {
     // Check if user has admin access to this client
     const userClient = await UserClient.findOne({
       where: {
-        userId: req.user.userId,
+        userId: req.user.id,
         clientId: id,
         role: 'admin'
       }

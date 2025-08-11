@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult, query } = require('express-validator');
 const { Test, Client, UserClient } = require('../models');
-const { authenticateToken } = require('./auth');
+const authenticateToken = require('../middleware/auth');
 const router = express.Router();
 
 // Get all tests for a client
@@ -16,7 +16,7 @@ router.get('/', authenticateToken, async (req, res) => {
     // Check if user has access to this client
     const userClient = await UserClient.findOne({
       where: {
-        userId: req.user.userId,
+        userId: req.user.id,
         clientId
       }
     });
@@ -58,7 +58,7 @@ router.post('/', authenticateToken, [
     // Check if user has permission to create tests for this client
     const userClient = await UserClient.findOne({
       where: {
-        userId: req.user.userId,
+        userId: req.user.id,
         clientId
       }
     });
@@ -96,7 +96,7 @@ router.patch('/:id', authenticateToken, async (req, res) => {
     // Check if user has permission to edit this test
     const userClient = await UserClient.findOne({
       where: {
-        userId: req.user.userId,
+        userId: req.user.id,
         clientId: test.clientId
       }
     });
