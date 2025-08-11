@@ -249,7 +249,7 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="min-h-screen w-full px-4 bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center">
+    <div className="min-h-screen w-screen px-4 bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center">
       <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md md:max-w-lg lg:max-w-xl p-8 border border-gray-700">
         <div className="text-center mb-8">
           <div className="bg-purple-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -1429,7 +1429,7 @@ const MainApp = () => {
       <div className="flex-1 flex flex-col">
         <Header />
         <main className="flex-1 p-8">
-          <div className="max-w-7xl mx-auto">
+          <div className="w-full">
             {renderContent()}
           </div>
         </main>
