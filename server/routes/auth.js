@@ -1,10 +1,9 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const { User, Client, UserClient, Invitation, Agency } = require('../models');
 const { generateApiKey, generateToken } = require('../utils/helpers');
 const { sendEmail, sendInvitationEmail, sendWelcomeEmail } = require('../utils/email');
+const supabase = require('../services/supabaseService');
 const router = express.Router();
 
 // Default permissions for client roles
@@ -32,22 +31,22 @@ const rolePermissions = {
   }
 };
 
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
+// Middleware to verify auth token via Supabase
+const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
+    return res.status(401).json({ error: 'Toegangstoken vereist' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
-    }
-    req.user = user;
-    next();
-  });
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error) {
+    return res.status(403).json({ error: 'Ongeldig of verlopen token' });
+  }
+
+  req.user = { userId: data.user.id, email: data.user.email };
+  next();
 };
 
 // Register new user
@@ -64,31 +63,36 @@ router.post('/register', [
 
     const { email, password, name } = req.body;
 
-    // Check if user already exists
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ error: 'User already exists with this email' });
+      return res.status(400).json({ error: 'Gebruiker bestaat al met dit e-mailadres' });
     }
 
-    // Hash password
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name } }
+    });
 
-    // Create agency for user
+    if (error) {
+      return res.status(400).json({ error: 'Registratie mislukt' });
+    }
+
+    const supabaseUser = data.user;
+
     const agency = await Agency.create({
       name: `${name}'s Agency`
     });
 
-    // Create user
     const user = await User.create({
+      id: supabaseUser.id,
       email,
-      password: hashedPassword,
+      password: 'supabase',
       name,
-      role: 'admin', // First user is admin
+      role: 'admin',
       agencyId: agency.id
     });
 
-    // Create default client for new user
     const client = await Client.create({
       name: `${name}'s Workspace`,
       domain: 'example.com',
@@ -96,7 +100,6 @@ router.post('/register', [
       agencyId: agency.id
     });
 
-    // Associate user with client
     await UserClient.create({
       userId: user.id,
       clientId: client.id,
@@ -110,15 +113,10 @@ router.post('/register', [
       }
     });
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '7d' }
-    );
+    const token = data.session?.access_token || null;
 
     res.status(201).json({
-      message: 'User created successfully',
+      message: 'Gebruiker succesvol aangemaakt',
       token,
       user: {
         id: user.id,
@@ -139,7 +137,7 @@ router.post('/register', [
     });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ error: 'Registration failed' });
+    res.status(500).json({ error: 'Registratie mislukt' });
   }
 });
 
@@ -156,9 +154,15 @@ router.post('/login', [
 
     const { email, password } = req.body;
 
-    // Find user
-    const user = await User.findOne({
-      where: { email },
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      return res.status(401).json({ error: 'Ongeldige inloggegevens' });
+    }
+
+    const supabaseUser = data.user;
+    const token = data.session.access_token;
+
+    const user = await User.findByPk(supabaseUser.id, {
       include: [
         { model: Agency, attributes: ['id', 'name', 'settings'] },
         {
@@ -170,27 +174,13 @@ router.post('/login', [
     });
 
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Ongeldige inloggegevens' });
     }
 
-    // Check password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // Update last login
     await user.update({ lastLogin: new Date() });
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '7d' }
-    );
-
     res.json({
-      message: 'Login successful',
+      message: 'Inloggen gelukt',
       token,
       user: {
         id: user.id,
@@ -204,7 +194,108 @@ router.post('/login', [
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Login failed' });
+    res.status(500).json({ error: 'Inloggen mislukt' });
+  }
+});
+
+// Google OAuth login
+router.post('/login/google', async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: 'Code is vereist' });
+    }
+
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      return res.status(400).json({ error: 'Google login mislukt' });
+    }
+
+    const supabaseUser = data.user;
+    const token = data.session.access_token;
+
+    let user = await User.findByPk(supabaseUser.id, {
+      include: [
+        { model: Agency, attributes: ['id', 'name', 'settings'] },
+        {
+          model: Client,
+          through: UserClient,
+          attributes: ['id', 'name', 'domain']
+        }
+      ]
+    });
+
+    if (!user) {
+      const name = supabaseUser.user_metadata?.name || supabaseUser.email;
+      const agency = await Agency.create({ name: `${name}'s Agency` });
+      user = await User.create({
+        id: supabaseUser.id,
+        email: supabaseUser.email,
+        password: 'supabase',
+        name,
+        role: 'admin',
+        agencyId: agency.id
+      });
+
+      const client = await Client.create({
+        name: `${name}'s Workspace`,
+        domain: 'example.com',
+        apiKey: generateApiKey(),
+        agencyId: agency.id
+      });
+
+      await UserClient.create({
+        userId: user.id,
+        clientId: client.id,
+        role: 'admin',
+        permissions: {
+          canCreateTests: true,
+          canEditTests: true,
+          canDeleteTests: true,
+          canViewAnalytics: true,
+          canManageUsers: true
+        }
+      });
+
+      await user.update({ lastLogin: new Date() });
+
+      return res.json({
+        message: 'Inloggen gelukt',
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          lastLogin: user.lastLogin
+        },
+        agency: {
+          id: agency.id,
+          name: agency.name,
+          settings: agency.settings
+        },
+        clients: [client]
+      });
+    }
+
+    await user.update({ lastLogin: new Date() });
+
+    res.json({
+      message: 'Inloggen gelukt',
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        lastLogin: user.lastLogin
+      },
+      agency: user.Agency,
+      clients: user.Clients || []
+    });
+  } catch (error) {
+    console.error('Google login error:', error);
+    res.status(500).json({ error: 'Google login mislukt' });
   }
 });
 
@@ -290,27 +381,51 @@ router.post('/accept-invitation', [
 
     const invitation = await Invitation.findOne({ where: { token, status: 'pending' } });
     if (!invitation || invitation.expiresAt < new Date()) {
-      return res.status(400).json({ error: 'Invalid or expired invitation' });
+      return res.status(400).json({ error: 'Ongeldige of verlopen uitnodiging' });
     }
 
-    // Find or create user
+    const client = await Client.findByPk(invitation.clientId);
+
     let user = await User.findOne({ where: { email: invitation.email } });
+    let accessToken;
 
     if (!user) {
       if (!name || !password) {
-        return res.status(400).json({ error: 'Name and password required' });
+        return res.status(400).json({ error: 'Naam en wachtwoord vereist' });
       }
 
-      const hashedPassword = await bcrypt.hash(password, 12);
-      user = await User.create({
+      const { data, error } = await supabase.auth.signUp({
         email: invitation.email,
-        name,
-        password: hashedPassword,
-        role: 'user'
+        password,
+        options: { data: { name } }
       });
+
+      if (error) {
+        return res.status(400).json({ error: 'Registratie mislukt' });
+      }
+
+      accessToken = data.session?.access_token || null;
+
+      user = await User.create({
+        id: data.user.id,
+        email: invitation.email,
+        password: 'supabase',
+        name,
+        role: 'user',
+        agencyId: client.agencyId
+      });
+    } else {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: invitation.email,
+        password
+      });
+
+      if (error) {
+        return res.status(401).json({ error: 'Ongeldige inloggegevens' });
+      }
+      accessToken = data.session.access_token;
     }
 
-    // Associate user with client
     await UserClient.create({
       userId: user.id,
       clientId: invitation.clientId,
@@ -320,23 +435,15 @@ router.post('/accept-invitation', [
 
     await invitation.update({ status: 'accepted', acceptedAt: new Date() });
 
-    const client = await Client.findByPk(invitation.clientId);
-
     try {
       await sendWelcomeEmail({ to: user.email, name: user.name, clientName: client.name });
     } catch (emailError) {
       console.error('Welcome email failed:', emailError);
     }
 
-    const jwtToken = jwt.sign(
-      { userId: user.id, email: user.email },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '7d' }
-    );
-
     res.json({
-      message: 'Invitation accepted',
-      token: jwtToken,
+      message: 'Uitnodiging geaccepteerd',
+      token: accessToken,
       user: {
         id: user.id,
         email: user.email,
@@ -351,7 +458,7 @@ router.post('/accept-invitation', [
     });
   } catch (error) {
     console.error('Accept invitation error:', error);
-    res.status(500).json({ error: 'Failed to accept invitation' });
+    res.status(500).json({ error: 'Uitnodiging accepteren mislukt' });
   }
 });
 
