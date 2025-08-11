@@ -2,8 +2,9 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { Client, UserClient, Invitation, Agency } = require('../models');
 const { generateApiKey, generateToken } = require('../utils/helpers');
-const { sendEmail, sendInvitationEmail, sendWelcomeEmail } = require('../utils/email');
+const { sendInvitationEmail, sendWelcomeEmail } = require('../utils/email');
 const supabase = require('../services/supabaseService');
+const gmailService = require('../services/gmailService');
 const authenticateToken = require('../middleware/auth');
 const router = express.Router();
 
@@ -113,7 +114,8 @@ router.post('/register', [
 // Login user
 router.post('/login', [
   body('email').isEmail().normalizeEmail(),
-  body('password').exists()
+  body('password').exists(),
+  body('gmailRefreshToken').optional().isString()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -121,7 +123,7 @@ router.post('/login', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password } = req.body;
+    const { email, password, gmailRefreshToken } = req.body;
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
@@ -130,6 +132,14 @@ router.post('/login', [
 
     const supabaseUser = data.user;
     const token = data.session.access_token;
+
+    if (gmailRefreshToken) {
+      try {
+        await gmailService.storeRefreshToken(supabaseUser.id, gmailRefreshToken);
+      } catch (e) {
+        console.error('Failed to store Gmail token:', e);
+      }
+    }
 
     const userClients = await UserClient.findAll({
       where: { userId: supabaseUser.id },
@@ -210,9 +220,9 @@ router.post('/invite', authenticateToken, [
 
     // Send invitation email
     try {
-      await sendInvitationEmail({
+      await sendInvitationEmail(req.user.id, {
         to: email,
-          inviterName,
+        inviterName,
         clientName: client.name,
         role,
         token,
@@ -288,7 +298,7 @@ router.post('/accept-invitation', [
     await invitation.update({ status: 'accepted', acceptedAt: new Date() });
 
     try {
-      await sendWelcomeEmail({
+      await sendWelcomeEmail(invitation.invitedBy, {
         to: invitation.email,
         name: supabaseUser.user_metadata?.name || invitation.email,
         clientName: client.name
@@ -355,6 +365,21 @@ router.get('/me', authenticateToken, async (req, res) => {
 // Logout (client-side should remove token)
 router.post('/logout', authenticateToken, (req, res) => {
   res.json({ message: 'Logged out successfully' });
+});
+
+// Store Gmail OAuth token after explicit authorization
+router.post('/gmail/token', authenticateToken, [
+  body('refreshToken').isString()
+], async (req, res) => {
+  const { refreshToken } = req.body;
+
+  try {
+    await gmailService.storeRefreshToken(req.user.id, refreshToken);
+    res.json({ message: 'Token stored' });
+  } catch (error) {
+    console.error('Store Gmail token error:', error);
+    res.status(500).json({ error: 'Failed to store token' });
+  }
 });
 
 module.exports = router;
