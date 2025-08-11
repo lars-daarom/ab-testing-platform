@@ -2,10 +2,10 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
-import { 
-  User, 
-  Plus, 
-  Settings, 
+import {
+  User,
+  Plus,
+  Settings,
   BarChart3, 
   Target, 
   Code, 
@@ -34,6 +34,7 @@ import {
   Copy,
   Dot
 } from 'lucide-react';
+import GoogleLoginButton from './components/GoogleLoginButton';
 
 // API configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -317,12 +318,7 @@ const LoginForm = () => {
           </button>
         </form>
 
-        <button
-          type="button"
-          className="mt-6 w-full bg-[#4285F4] hover:bg-[#357AE8] focus:bg-[#357AE8] text-white py-3 rounded-lg transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-[#357AE8] focus:ring-offset-2 dark:focus:ring-offset-gray-800"
-        >
-          Gratis Starten met Google
-        </button>
+        <GoogleLoginButton className="mt-6" text="Inloggen met Google" />
 
         <div className="mt-6 text-center">
           <button
