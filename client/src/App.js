@@ -249,7 +249,7 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center">
+    <div className="min-h-screen w-full px-4 bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center">
       <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-8 border border-gray-700">
         <div className="text-center mb-8">
           <div className="bg-purple-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
