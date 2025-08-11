@@ -316,7 +316,14 @@ const LoginForm = () => {
             {loading ? 'Even geduld...' : (isLogin ? 'Inloggen' : 'Account Aanmaken')}
           </button>
         </form>
-        
+
+        <button
+          type="button"
+          className="mt-6 w-full bg-[#4285F4] hover:bg-[#357AE8] focus:bg-[#357AE8] text-white py-3 rounded-lg transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-[#357AE8] focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+        >
+          Gratis Starten met Google
+        </button>
+
         <div className="mt-6 text-center">
           <button
             onClick={() => setIsLogin(!isLogin)}
