@@ -1372,7 +1372,7 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
   ];
 
   return (
-    <nav className="w-64 bg-gray-100 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 min-h-screen">
+    <nav className="hidden md:block w-64 bg-gray-100 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 min-h-screen">
       <div className="p-4">
         <div className="space-y-2">
           {menuItems.map(item => (
@@ -1415,7 +1415,7 @@ const MainApp = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 flex">
+    <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 md:flex">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <div className="flex-1 flex flex-col">
         <Header />
