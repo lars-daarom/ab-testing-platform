@@ -417,7 +417,7 @@ const ClientSwitcher = () => {
         className="flex items-center space-x-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm text-gray-300 border border-gray-600 transition-colors"
       >
         <Globe size={16} />
-        <span className="max-w-32 truncate">{currentClient?.name}</span>
+        <span className="w-32 truncate">{currentClient?.name}</span>
         <ChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       
