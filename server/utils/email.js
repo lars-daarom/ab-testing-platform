@@ -1,44 +1,4 @@
-const nodemailer = require('nodemailer');
-
-// Email service configuration
-const createTransporter = () => {
-  // Use environment variables for email configuration
-  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT) || 587,
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
-  }
-
-  // Fallback to Gmail (less secure, for development only)
-  if (process.env.GMAIL_USER && process.env.GMAIL_PASS) {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_PASS
-      }
-    });
-  }
-
-  // For development/testing - log emails to console
-  if (process.env.NODE_ENV === 'development') {
-    return nodemailer.createTransport({
-      streamTransport: true,
-      newline: 'unix',
-      buffer: true
-    });
-  }
-
-  // Production fallback - you should configure a real email service
-  console.warn('⚠️  No email service configured. Emails will not be sent.');
-  return null;
-};
+const { sendEmail: sendGmailEmail } = require('../services/gmailService');
 
 /**
  * Send an email
@@ -50,34 +10,9 @@ const createTransporter = () => {
  * @param {string} options.from - Sender email (optional)
  * @returns {Promise} Promise that resolves when email is sent
  */
-const sendEmail = async (options) => {
-  const transporter = createTransporter();
-  
-  if (!transporter) {
-    console.log('📧 Email would be sent:', options);
-    return Promise.resolve({ messageId: 'dev-' + Date.now() });
-  }
-
-  const mailOptions = {
-    from: options.from || process.env.FROM_EMAIL || 'A/B Testing Platform <noreply@abtesting.com>',
-    to: options.to,
-    subject: options.subject,
-    text: options.text,
-    html: options.html
-  };
-
+const sendEmail = async (userId, options) => {
   try {
-    const result = await transporter.sendMail(mailOptions);
-    
-    if (process.env.NODE_ENV === 'development' && result.message) {
-      console.log('📧 Email sent (dev mode):', {
-        to: options.to,
-        subject: options.subject,
-        content: result.message.toString()
-      });
-    }
-    
-    return result;
+    return await sendGmailEmail(userId, options);
   } catch (error) {
     console.error('❌ Failed to send email:', error);
     throw error;
@@ -95,7 +30,7 @@ const sendEmail = async (options) => {
  * @param {string} [options.frontendUrl] - Frontend base URL
  * @returns {Promise} Promise that resolves when email is sent
  */
-const sendInvitationEmail = async (options) => {
+const sendInvitationEmail = async (userId, options) => {
   const { to, inviterName, clientName, role, token, frontendUrl } = options;
   const baseUrl = frontendUrl || process.env.FRONTEND_URL || 'http://localhost:3000';
   const acceptUrl = `${baseUrl}/accept-invitation?token=${token}`;
@@ -167,7 +102,7 @@ Met vriendelijke groet,
 Het A/B Testing Platform Team
   `;
 
-  return sendEmail({
+  return sendEmail(userId, {
     to,
     subject,
     html,
@@ -183,7 +118,7 @@ Het A/B Testing Platform Team
  * @param {string} options.clientName - Client name
  * @returns {Promise} Promise that resolves when email is sent
  */
-const sendWelcomeEmail = async (options) => {
+const sendWelcomeEmail = async (userId, options) => {
   const { to, name, clientName } = options;
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
@@ -225,7 +160,7 @@ const sendWelcomeEmail = async (options) => {
     </html>
   `;
 
-  return sendEmail({
+  return sendEmail(userId, {
     to,
     subject,
     html
