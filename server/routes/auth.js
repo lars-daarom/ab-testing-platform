@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { User, Client, UserClient, Invitation, Agency } = require('../models');
+const { Client, UserClient, Invitation, Agency } = require('../models');
 const { generateApiKey, generateToken } = require('../utils/helpers');
 const { sendEmail, sendInvitationEmail, sendWelcomeEmail } = require('../utils/email');
 const supabase = require('../services/supabaseService');
@@ -46,11 +46,6 @@ router.post('/register', [
 
     const { email, password, name } = req.body;
 
-    const existingUser = await User.findOne({ where: { email } });
-    if (existingUser) {
-      return res.status(400).json({ error: 'Gebruiker bestaat al met dit e-mailadres' });
-    }
-
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -67,15 +62,6 @@ router.post('/register', [
       name: `${name}'s Agency`
     });
 
-    const user = await User.create({
-      id: supabaseUser.id,
-      email,
-      password: 'supabase',
-      name,
-      role: 'admin',
-      agencyId: agency.id
-    });
-
     const client = await Client.create({
       name: `${name}'s Workspace`,
       domain: 'example.com',
@@ -84,7 +70,7 @@ router.post('/register', [
     });
 
     await UserClient.create({
-      userId: user.id,
+      userId: supabaseUser.id,
       clientId: client.id,
       role: 'admin',
       permissions: {
@@ -102,10 +88,10 @@ router.post('/register', [
       message: 'Gebruiker succesvol aangemaakt',
       token,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role
+        id: supabaseUser.id,
+        email: supabaseUser.email,
+        name,
+        role: 'admin'
       },
       agency: {
         id: agency.id,
@@ -145,140 +131,36 @@ router.post('/login', [
     const supabaseUser = data.user;
     const token = data.session.access_token;
 
-    const user = await User.findByPk(supabaseUser.id, {
-      include: [
-        { model: Agency, attributes: ['id', 'name', 'settings'] },
-        {
-          model: Client,
-          through: UserClient,
-          attributes: ['id', 'name', 'domain']
-        }
-      ]
+    const userClients = await UserClient.findAll({
+      where: { userId: supabaseUser.id },
+      include: [{
+        model: Client,
+        attributes: ['id', 'name', 'domain'],
+        include: [{ model: Agency, attributes: ['id', 'name', 'settings'] }]
+      }]
     });
 
-    if (!user) {
-      return res.status(401).json({ error: 'Ongeldige inloggegevens' });
-    }
-
-    await user.update({ lastLogin: new Date() });
+    const clients = userClients.map(uc => ({
+      id: uc.Client.id,
+      name: uc.Client.name,
+      domain: uc.Client.domain
+    }));
+    const agency = userClients[0]?.Client?.Agency || null;
 
     res.json({
       message: 'Inloggen gelukt',
       token,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        lastLogin: user.lastLogin
+        id: supabaseUser.id,
+        email: supabaseUser.email,
+        name: supabaseUser.user_metadata?.name || supabaseUser.email
       },
-      agency: user.Agency,
-      clients: user.Clients || []
+      agency,
+      clients
     });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Inloggen mislukt' });
-  }
-});
-
-// Google OAuth login
-router.post('/login/google', async (req, res) => {
-  try {
-    const { code } = req.body;
-    if (!code) {
-      return res.status(400).json({ error: 'Code is vereist' });
-    }
-
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) {
-      return res.status(400).json({ error: 'Google login mislukt' });
-    }
-
-    const supabaseUser = data.user;
-    const token = data.session.access_token;
-
-    let user = await User.findByPk(supabaseUser.id, {
-      include: [
-        { model: Agency, attributes: ['id', 'name', 'settings'] },
-        {
-          model: Client,
-          through: UserClient,
-          attributes: ['id', 'name', 'domain']
-        }
-      ]
-    });
-
-    if (!user) {
-      const name = supabaseUser.user_metadata?.name || supabaseUser.email;
-      const agency = await Agency.create({ name: `${name}'s Agency` });
-      user = await User.create({
-        id: supabaseUser.id,
-        email: supabaseUser.email,
-        password: 'supabase',
-        name,
-        role: 'admin',
-        agencyId: agency.id
-      });
-
-      const client = await Client.create({
-        name: `${name}'s Workspace`,
-        domain: 'example.com',
-        apiKey: generateApiKey(),
-        agencyId: agency.id
-      });
-
-      await UserClient.create({
-        userId: user.id,
-        clientId: client.id,
-        role: 'admin',
-        permissions: {
-          canCreateTests: true,
-          canEditTests: true,
-          canDeleteTests: true,
-          canViewAnalytics: true,
-          canManageUsers: true
-        }
-      });
-
-      await user.update({ lastLogin: new Date() });
-
-      return res.json({
-        message: 'Inloggen gelukt',
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          lastLogin: user.lastLogin
-        },
-        agency: {
-          id: agency.id,
-          name: agency.name,
-          settings: agency.settings
-        },
-        clients: [client]
-      });
-    }
-
-    await user.update({ lastLogin: new Date() });
-
-    res.json({
-      message: 'Inloggen gelukt',
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        lastLogin: user.lastLogin
-      },
-      agency: user.Agency,
-      clients: user.Clients || []
-    });
-  } catch (error) {
-    console.error('Google login error:', error);
-    res.status(500).json({ error: 'Google login mislukt' });
   }
 });
 
@@ -310,7 +192,7 @@ router.post('/invite', authenticateToken, [
       return res.status(404).json({ error: 'Client not found' });
     }
 
-    const inviterUser = await User.findByPk(req.user.id);
+    const inviterName = req.user.user_metadata?.name || 'Iemand';
     const frontendUrl = process.env.FRONTEND_URL || req.get('origin') || 'http://localhost:3000';
 
     // Create invitation token
@@ -330,7 +212,7 @@ router.post('/invite', authenticateToken, [
     try {
       await sendInvitationEmail({
         to: email,
-        inviterName: inviterUser?.name || 'Iemand',
+          inviterName,
         clientName: client.name,
         role,
         token,
@@ -369,48 +251,35 @@ router.post('/accept-invitation', [
 
     const client = await Client.findByPk(invitation.clientId);
 
-    let user = await User.findOne({ where: { email: invitation.email } });
     let accessToken;
+    let supabaseUser;
 
-    if (!user) {
+    const signIn = await supabase.auth.signInWithPassword({
+      email: invitation.email,
+      password: password || ''
+    });
+
+    if (signIn.error) {
       if (!name || !password) {
         return res.status(400).json({ error: 'Naam en wachtwoord vereist' });
       }
-
-      const { data, error } = await supabase.auth.signUp({
+      const signUp = await supabase.auth.signUp({
         email: invitation.email,
         password,
         options: { data: { name } }
       });
-
-      if (error) {
+      if (signUp.error) {
         return res.status(400).json({ error: 'Registratie mislukt' });
       }
-
-      accessToken = data.session?.access_token || null;
-
-      user = await User.create({
-        id: data.user.id,
-        email: invitation.email,
-        password: 'supabase',
-        name,
-        role: 'user',
-        agencyId: client.agencyId
-      });
+      accessToken = signUp.data.session?.access_token || null;
+      supabaseUser = signUp.data.user;
     } else {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: invitation.email,
-        password
-      });
-
-      if (error) {
-        return res.status(401).json({ error: 'Ongeldige inloggegevens' });
-      }
-      accessToken = data.session.access_token;
+      accessToken = signIn.data.session.access_token;
+      supabaseUser = signIn.data.user;
     }
 
     await UserClient.create({
-      userId: user.id,
+      userId: supabaseUser.id,
       clientId: invitation.clientId,
       role: invitation.role,
       permissions: rolePermissions[invitation.role]
@@ -419,7 +288,11 @@ router.post('/accept-invitation', [
     await invitation.update({ status: 'accepted', acceptedAt: new Date() });
 
     try {
-      await sendWelcomeEmail({ to: user.email, name: user.name, clientName: client.name });
+      await sendWelcomeEmail({
+        to: invitation.email,
+        name: supabaseUser.user_metadata?.name || invitation.email,
+        clientName: client.name
+      });
     } catch (emailError) {
       console.error('Welcome email failed:', emailError);
     }
@@ -428,10 +301,10 @@ router.post('/accept-invitation', [
       message: 'Uitnodiging geaccepteerd',
       token: accessToken,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role
+        id: supabaseUser.id,
+        email: supabaseUser.email,
+        name: supabaseUser.user_metadata?.name || supabaseUser.email,
+        role: 'user'
       },
       client: {
         id: client.id,
@@ -448,32 +321,30 @@ router.post('/accept-invitation', [
 // Get current user
 router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id, {
-      attributes: ['id', 'email', 'name', 'role', 'lastLogin'],
-      include: [
-        { model: Agency, attributes: ['id', 'name', 'settings'] },
-        {
-          model: Client,
-          through: UserClient,
-          attributes: ['id', 'name', 'domain']
-        }
-      ]
+    const userClients = await UserClient.findAll({
+      where: { userId: req.user.id },
+      include: [{
+        model: Client,
+        attributes: ['id', 'name', 'domain'],
+        include: [{ model: Agency, attributes: ['id', 'name', 'settings'] }]
+      }]
     });
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const clients = userClients.map(uc => ({
+      id: uc.Client.id,
+      name: uc.Client.name,
+      domain: uc.Client.domain
+    }));
+    const agency = userClients[0]?.Client?.Agency || null;
 
     res.json({
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        lastLogin: user.lastLogin
+        id: req.user.id,
+        email: req.user.email,
+        name: req.user.user_metadata?.name || req.user.email
       },
-      agency: user.Agency,
-      clients: user.Clients || []
+      agency,
+      clients
     });
   } catch (error) {
     console.error('Get user error:', error);

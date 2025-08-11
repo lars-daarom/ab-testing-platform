@@ -35,49 +35,6 @@ const Agency = sequelize.define('Agency', {
   timestamps: true
 });
 
-// User Model
-const User = sequelize.define('User', {
-  id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true
-  },
-  email: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    unique: true,
-    validate: {
-      isEmail: true
-    }
-  },
-  password: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  name: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  role: {
-    type: DataTypes.ENUM('admin', 'user'),
-    defaultValue: 'user'
-  },
-  isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
-  },
-  lastLogin: {
-    type: DataTypes.DATE
-  },
-  agencyId: {
-    type: DataTypes.UUID,
-    allowNull: false
-  }
-}, {
-  tableName: 'users',
-  timestamps: true
-});
-
 // Client Model
 const Client = sequelize.define('Client', {
   id: {
@@ -278,8 +235,16 @@ const Conversion = sequelize.define('Conversion', {
   timestamps: true
 });
 
-// UserClient Model (Many-to-Many relationship)
+// UserClient Model (User membership within a client)
 const UserClient = sequelize.define('UserClient', {
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
+  clientId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
   role: {
     type: DataTypes.ENUM('admin', 'editor', 'viewer'),
     defaultValue: 'viewer'
@@ -326,6 +291,10 @@ const Invitation = sequelize.define('Invitation', {
     type: DataTypes.ENUM('pending', 'accepted', 'expired'),
     defaultValue: 'pending'
   },
+  invitedBy: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
   expiresAt: {
     type: DataTypes.DATE,
     allowNull: false
@@ -339,9 +308,6 @@ const Invitation = sequelize.define('Invitation', {
 });
 
 // Define associations
-User.belongsToMany(Client, { through: UserClient, foreignKey: 'userId' });
-Client.belongsToMany(User, { through: UserClient, foreignKey: 'clientId' });
-
 Client.hasMany(Test, { foreignKey: 'clientId', onDelete: 'CASCADE' });
 Test.belongsTo(Client, { foreignKey: 'clientId' });
 
@@ -354,11 +320,8 @@ Conversion.belongsTo(Test, { foreignKey: 'testId' });
 Client.hasMany(Invitation, { foreignKey: 'clientId', onDelete: 'CASCADE' });
 Invitation.belongsTo(Client, { foreignKey: 'clientId' });
 
-User.hasMany(Invitation, { foreignKey: 'invitedBy' });
-Invitation.belongsTo(User, { foreignKey: 'invitedBy' });
-
-Agency.hasMany(User, { foreignKey: 'agencyId', onDelete: 'CASCADE' });
-User.belongsTo(Agency, { foreignKey: 'agencyId' });
+Client.hasMany(UserClient, { foreignKey: 'clientId', onDelete: 'CASCADE' });
+UserClient.belongsTo(Client, { foreignKey: 'clientId' });
 
 Agency.hasMany(Client, { foreignKey: 'agencyId', onDelete: 'CASCADE' });
 Client.belongsTo(Agency, { foreignKey: 'agencyId' });
@@ -366,7 +329,6 @@ Client.belongsTo(Agency, { foreignKey: 'agencyId' });
 // Export models and sequelize instance
 module.exports = {
   sequelize,
-  User,
   Client,
   Test,
   Visitor,
