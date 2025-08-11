@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { Client, User, UserClient, Test } = require('../models');
+const { Client, UserClient, Test } = require('../models');
 const authenticateToken = require('../middleware/auth');
 const { generateApiKey } = require('../utils/helpers');
 const router = express.Router();
@@ -8,26 +8,21 @@ const router = express.Router();
 // Get all clients for authenticated user
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id, {
+    const userClients = await UserClient.findAll({
+      where: { userId: req.user.id },
       include: [{
         model: Client,
-        through: UserClient,
         attributes: ['id', 'name', 'domain', 'createdAt', 'updatedAt']
       }]
     });
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Format clients with proper date fields
-    const formattedClients = (user.Clients || []).map(client => ({
-      id: client.id,
-      name: client.name,
-      domain: client.domain,
-      createdAt: client.createdAt,
-      updatedAt: client.updatedAt,
-      created: client.createdAt // Fallback field
+    const formattedClients = userClients.map(uc => ({
+      id: uc.Client.id,
+      name: uc.Client.name,
+      domain: uc.Client.domain,
+      createdAt: uc.Client.createdAt,
+      updatedAt: uc.Client.updatedAt,
+      created: uc.Client.createdAt
     }));
 
     res.json({
@@ -59,13 +54,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     const client = await Client.findByPk(id, {
       include: [{
-        model: User,
-        through: UserClient,
-        attributes: ['id', 'name', 'email'],
-        include: [{
-          model: UserClient,
-          attributes: ['role', 'permissions']
-        }]
+        model: UserClient,
+        attributes: ['userId', 'role', 'permissions']
       }]
     });
 
@@ -83,7 +73,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
         isActive: client.isActive,
         createdAt: client.createdAt,
         updatedAt: client.updatedAt,
-        users: client.Users || []
+        users: client.UserClients || []
       }
     });
   } catch (error) {
@@ -105,9 +95,13 @@ router.post('/', authenticateToken, [
 
     const { name, domain } = req.body;
 
-    const user = await User.findByPk(req.user.id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    const existing = await UserClient.findOne({
+      where: { userId: req.user.id },
+      include: [{ model: Client, attributes: ['agencyId'] }]
+    });
+
+    if (!existing) {
+      return res.status(403).json({ error: 'User has no agency context' });
     }
 
     // Create client
@@ -115,7 +109,7 @@ router.post('/', authenticateToken, [
       name,
       domain,
       apiKey: generateApiKey(),
-      agencyId: user.agencyId
+      agencyId: existing.Client.agencyId
     });
 
     // Associate user with client as admin
