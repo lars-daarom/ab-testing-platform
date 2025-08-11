@@ -1,6 +1,6 @@
 const express = require('express');
 const { Test, Client, Visitor, Conversion, UserClient } = require('../models');
-const { authenticateToken } = require('./auth');
+const authenticateToken = require('../middleware/auth');
 const router = express.Router();
 
 // Get client dashboard stats
@@ -11,7 +11,7 @@ router.get('/stats/:clientId', authenticateToken, async (req, res) => {
     // Check if user has access to this client
     const userClient = await UserClient.findOne({
       where: {
-        userId: req.user.userId,
+        userId: req.user.id,
         clientId
       }
     });
