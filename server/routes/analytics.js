@@ -1,12 +1,22 @@
 const express = require('express');
 const { Test, Client, Visitor, Conversion, UserClient } = require('../models');
 const authenticateToken = require('../middleware/auth');
+const { getDateRange } = require('../utils/helpers');
+const { Op } = require('sequelize');
 const router = express.Router();
 
 // Get client dashboard stats
 router.get('/stats/:clientId', authenticateToken, async (req, res) => {
   try {
     const { clientId } = req.params;
+    const { start, end } = req.query;
+
+    let startDate, endDate;
+    try {
+      ({ startDate, endDate } = getDateRange('30d', start, end));
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
 
     // Check if user has access to this client
     const userClient = await UserClient.findOne({
@@ -22,8 +32,9 @@ router.get('/stats/:clientId', authenticateToken, async (req, res) => {
 
     // Get basic stats
     const [activeTests, totalVisitors, totalConversions] = await Promise.all([
-      Test.count({ where: { clientId, status: 'running' } }),
+      Test.count({ where: { clientId, status: 'running', createdAt: { [Op.between]: [startDate, endDate] } } }),
       Visitor.count({
+        where: { createdAt: { [Op.between]: [startDate, endDate] } },
         include: [{
           model: Test,
           where: { clientId },
@@ -31,6 +42,7 @@ router.get('/stats/:clientId', authenticateToken, async (req, res) => {
         }]
       }),
       Conversion.count({
+        where: { createdAt: { [Op.between]: [startDate, endDate] } },
         include: [{
           model: Test,
           where: { clientId },
