@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-route
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import { supabase } from './supabaseClient';
+import { parse, startOfMonth, endOfMonth, isValid } from 'date-fns';
+import { nl } from 'date-fns/locale';
 import {
   User,
   Plus,
@@ -493,18 +495,25 @@ const Dashboard = () => {
   });
   const [recentTests, setRecentTests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dateInput, setDateInput] = useState('');
+  const [range, setRange] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
-  }, [currentClient]);
+  }, [currentClient, range]);
 
   const fetchDashboardData = async () => {
     if (!currentClient) return;
-    
+
     setLoading(true);
     try {
+      const params = new URLSearchParams();
+      if (range) {
+        params.append('start', range.start);
+        params.append('end', range.end);
+      }
       const [statsResponse, testsResponse] = await Promise.all([
-        axios.get(`/analytics/stats/${currentClient.id}`),
+        axios.get(`/analytics/stats/${currentClient.id}?${params.toString()}`),
         axios.get(`/tests?clientId=${currentClient.id}&limit=5`)
       ]);
       
@@ -515,6 +524,18 @@ const Dashboard = () => {
       toast.error('Kon dashboard data niet laden');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const applyDateRange = () => {
+    try {
+      const parsed = parse(dateInput, 'LLLL yyyy', new Date(), { locale: nl });
+      if (!isValid(parsed)) throw new Error();
+      const start = startOfMonth(parsed).toISOString();
+      const end = endOfMonth(parsed).toISOString();
+      setRange({ start, end });
+    } catch {
+      toast.error('Ongeldige datum');
     }
   };
 
@@ -534,6 +555,21 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-8">
+      <div className="flex items-center space-x-2">
+        <input
+          type="text"
+          value={dateInput}
+          onChange={e => setDateInput(e.target.value)}
+          placeholder="bijv. januari 2025"
+          className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+        />
+        <button
+          onClick={applyDateRange}
+          className="bg-purple-600 text-white px-3 py-2 rounded"
+        >
+          Filter
+        </button>
+      </div>
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">

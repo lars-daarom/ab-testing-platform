@@ -118,12 +118,56 @@ const formatDate = (date) => {
 /**
  * Get date range for analytics
  * @param {string} period - Period ('24h', '7d', '30d', '90d')
+ * @param {string} [start] - Optional start date (ISO or natural language)
+ * @param {string} [end] - Optional end date (ISO or natural language)
  * @returns {Object} Start and end dates
  */
-const getDateRange = (period = '30d') => {
-  const endDate = new Date();
-  let startDate = new Date();
-  
+const { parseISO, parse, isValid, startOfMonth, endOfMonth, isAfter, isFuture } = require('date-fns');
+const { nl } = require('date-fns/locale');
+
+const getDateRange = (period = '30d', start, end) => {
+  const now = new Date();
+  let startDate;
+  let endDate;
+
+  if (start || end) {
+    if (start) {
+      startDate = parseISO(start);
+      if (!isValid(startDate)) {
+        const parsedStart = parse(start, 'LLLL yyyy', new Date(), { locale: nl });
+        if (isValid(parsedStart)) startDate = startOfMonth(parsedStart);
+      }
+      if (!isValid(startDate)) throw new Error('Invalid start date');
+    }
+
+    if (end) {
+      endDate = parseISO(end);
+      if (!isValid(endDate)) {
+        const parsedEnd = parse(end, 'LLLL yyyy', new Date(), { locale: nl });
+        if (isValid(parsedEnd)) endDate = endOfMonth(parsedEnd);
+      }
+      if (!isValid(endDate)) throw new Error('Invalid end date');
+    } else {
+      endDate = now;
+    }
+
+    if (!startDate) {
+      startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - 30);
+    }
+
+    if (isFuture(endDate)) endDate = now;
+    if (isAfter(startDate, endDate)) throw new Error('Start date must be before end date');
+
+    return {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString()
+    };
+  }
+
+  endDate = now;
+  startDate = new Date();
+
   switch (period) {
     case '24h':
       startDate.setHours(startDate.getHours() - 24);
@@ -140,7 +184,7 @@ const getDateRange = (period = '30d') => {
     default:
       startDate.setDate(startDate.getDate() - 30);
   }
-  
+
   return {
     startDate: startDate.toISOString(),
     endDate: endDate.toISOString()
